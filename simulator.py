@@ -1,3 +1,67 @@
+'''
+Traffic Lights AI Agent
+
+Goal: Find a set of configurations for "green times" in a pair of traffic lights
+
+Description: We have lane X and lane Y, they're an intersection, at some T time
+with some F_x and F_y traffic flow values we start getting higher values in the V_y traffic volume
+for lane Y. This is beacause generally the "green time" for the Y traffic light has a shorter span
+of time since is an smaller venue. We will have distinct F_x, F_y, V_x, V_y values at different
+T times, those values are uncertain and don't really have a way to have way to know what value
+will be at T time.
+We must also notice there will be a K probability that the F value readings are correct and a
+L probability value that the V values are also correct.
+
+Our States
+state_i = { # This is the traffic light for the X axis
+    green_time=35
+    traffic_flow=??? # Some value of whatever the flow is at T time
+    traffic_volume=?? # Some value of whatever is the volume V at the X lane in T time
+}
+state_j # The state for the Y axis
+
+Actions
+This is simple, we will just have the actions to increase or decrease the green time values
+
+Reward functon (Not sure if this applies in an Optimization Search Algorithm)
+This function will calculate the V traffic volume simulating the flow of the cars using the
+traffic flow of cars, the current V traffic volumes of both i and j states, their "green times",
+the speed in which car cross the lane (this is some avg time). We will set a time, let's say
+5 minutes, in which we will calculate how will the V traffic volume be after that time using
+the parameters mentioned above.
+
+Notes
+Started this problem trying to figure out what where the values that should be used.
+After choosing the traffic volume and the traffic flow as the parameters that can help us,
+which in fact already saw earlier but was not able to understand how they relate to our task,
+started figuring out how things should work.
+
+It took some time to come to an idea of what the end goal was, which in fact it turned out, we 
+don't really have an end goal, but an optimal state given our current readings. In any case, we
+kept the work gathering the inputs and outputs there should be, here is where the V, F, probability
+accuracy, car speeds, etc. values showed up. Since I saw probability values I thought of transition 
+models and that lead to thinking in the MDP algorithm. After some lengthy thought process I realized
+that my "transition model" was in fact, deterministic, meaning that I wasn't really dealing with an
+MDP. I was dealing with an Optimization Search problem!
+
+Here I still need to figure out some more things, how to fit this structure and variables to the
+search algorithm, maybe Hill climbing, maybe Simulated Annealing? Still to figure out
+
+The code implementation for our simulator using the AI algorithm would be something like this:
+
+In the function `repeat()` inside the first while loop we will want to check what is the
+current "traffic flow", which we could calculate using the `vehicles` object that contains all the 
+cars that has in each lane, we would need to set some artificial probability accuracy value because
+here we know for sure but not in the real world.
+In our reading, if we notice the traffic volume is higher than some value we choose we want to run
+our Optimization Search algorithm and find the best configuration, then upate accordingly.
+
+Inside the algorithm we would use some artificial traffic flow or call the tomtom API to get
+a value, in an ideal world, we could had gotten historical values and create some function based on
+it. In any case, use that traffic flow value to calculate using the speed values and some crossing
+value we also defined here.
+
+'''
 import random
 import time
 import threading
@@ -23,7 +87,7 @@ y = {'right':[348,370,398], 'down':[0,0,0], 'left':[498,466,436], 'up':[800,800,
 
 vehicles = {'right': {0:[], 1:[], 2:[], 'crossed':0}, 'down': {0:[], 1:[], 2:[], 'crossed':0}, 
             'left': {0:[], 1:[], 2:[], 'crossed':0}, 'up': {0:[], 1:[], 2:[], 'crossed':0}}
-vehicleTypes = {0:'car', 1:'bus', 2:'truck', 3:'bike'}
+vehicleTypes = {0:'car', 1:'bus', 3:'truck', 2:'bike'}
 directionNumbers = {0:'right', 1:'down', 2:'left', 3:'up'}
 
 # Modified coordinates for 2 signals instead of 4
@@ -135,6 +199,7 @@ def initialize():
 def repeat():
     global currentGreen, currentYellow, nextGreen
     while(signals[currentGreen].green>0):
+        print(vehicles)
         updateValues()
         time.sleep(1)
     currentYellow = 1
@@ -154,13 +219,13 @@ def repeat():
     signals[currentGreen].green = defaultGreen[currentGreen]
     signals[currentGreen].yellow = defaultYellow
     signals[currentGreen].red = defaultRed
-       
+
     currentGreen = nextGreen
     nextGreen = (currentGreen+1)%noOfSignals
     signals[nextGreen].red = signals[currentGreen].yellow+signals[currentGreen].green
     repeat()
 
-def updateValues():
+def updateValues(): # This is the function that updates the traffic lights counter
     for i in range(0, noOfSignals):
         if(i==currentGreen):
             if(currentYellow==0):
@@ -172,11 +237,18 @@ def updateValues():
 
 def generateVehicles():
     while(True):
-        vehicle_type = random.randint(0,3)
+        # We are now only generating cars, motorcycles, and buses
+        rand = random.randint(1,100)
+        if rand <= 75:  # 75% chance (1-75) Car
+            vehicle_type = 0
+        elif rand <= 90:  # 15% chance (76-90) Bus
+            vehicle_type = 1
+        else:  # 10% chance (91-100) Motorcycle
+            vehicle_type = 2
         lane_number = random.randint(1,2)
         temp = random.randint(0,99)
         direction_number = 0
-        dist = [25,50,75,100]
+        dist = [10,50,60,100]
         if(temp<dist[0]):
             direction_number = 0
         elif(temp<dist[1]):
@@ -188,62 +260,73 @@ def generateVehicles():
         Vehicle(lane_number, vehicleTypes[vehicle_type], direction_number, directionNumbers[direction_number])
         time.sleep(1)
 
+
 class Main:
-    thread1 = threading.Thread(name="initialization",target=initialize, args=())
-    thread1.daemon = True
-    thread1.start()
+    def __init__(self):
+        # Initialize colors
+        self.black = (0, 0, 0)
+        self.white = (255, 255, 255)
 
-    black = (0, 0, 0)
-    white = (255, 255, 255)
-
-    screenWidth = 1400
-    screenHeight = 800
-    screenSize = (screenWidth, screenHeight)
-
-    background = pygame.image.load('images/intersection.png')
-
-    screen = pygame.display.set_mode(screenSize)
-    pygame.display.set_caption("TRAFFIC SIMULATION")
-
-    redSignal = pygame.image.load('images/signals/red.png')
-    yellowSignal = pygame.image.load('images/signals/yellow.png')
-    greenSignal = pygame.image.load('images/signals/green.png')
-    font = pygame.font.Font(None, 30)
-
-    thread2 = threading.Thread(name="generateVehicles",target=generateVehicles, args=())
-    thread2.daemon = True
-    thread2.start()
-
-    while True:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                sys.exit()
-
-        screen.blit(background,(0,0))
-        for i in range(0,noOfSignals):
-            if(i==currentGreen):
-                if(currentYellow==1):
-                    signals[i].signalText = signals[i].yellow
-                    screen.blit(yellowSignal, signalCoods[i])
-                else:
-                    signals[i].signalText = signals[i].green
-                    screen.blit(greenSignal, signalCoods[i])
-            else:
-                if(signals[i].red<=10):
-                    signals[i].signalText = signals[i].red
-                else:
-                    signals[i].signalText = "---"
-                screen.blit(redSignal, signalCoods[i])
+        # Initialize screen
+        self.screenWidth = 1400
+        self.screenHeight = 800
+        self.screenSize = (self.screenWidth, self.screenHeight)
         
-        signalTexts = ["",""]  # Modified for 2 signals
+        # Initialize pygame and load resources
+        self.screen = pygame.display.set_mode(self.screenSize)
+        pygame.display.set_caption("TRAFFIC SIMULATION")
+        self.background = pygame.image.load('images/intersection.png')
+        self.redSignal = pygame.image.load('images/signals/red.png')
+        self.yellowSignal = pygame.image.load('images/signals/yellow.png')
+        self.greenSignal = pygame.image.load('images/signals/green.png')
+        self.font = pygame.font.Font(None, 30)
 
-        for i in range(0,noOfSignals):
-            signalTexts[i] = font.render(str(signals[i].signalText), True, white, black)
-            screen.blit(signalTexts[i], signalTimerCoods[i])
+    def start_simulation(self):
+        # Create and start threads
+        self.thread1 = threading.Thread(name="initialization", target=initialize)
+        self.thread1.daemon = True
+        self.thread1.start()
 
-        for vehicle in simulation:
-            screen.blit(vehicle.image, [vehicle.x, vehicle.y])
-            vehicle.move()
-        pygame.display.update()
+        self.thread2 = threading.Thread(name="generateVehicles", target=generateVehicles)
+        self.thread2.daemon = True
+        self.thread2.start()
 
-Main()
+    def run(self):
+        # Start the simulation threads
+        self.start_simulation()
+        while True:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    sys.exit()
+
+            self.screen.blit(self.background,(0,0))
+            for i in range(0,noOfSignals):
+                if(i==currentGreen):
+                    if(currentYellow==1):
+                        signals[i].signalText = signals[i].yellow
+                        self.screen.blit(self.yellowSignal, signalCoods[i])
+                    else:
+                        signals[i].signalText = signals[i].green
+                        self.screen.blit(self.greenSignal, signalCoods[i])
+                else:
+                    if(signals[i].red<=10):
+                        signals[i].signalText = signals[i].red
+                    else:
+                        signals[i].signalText = "---"
+                    self.screen.blit(self.redSignal, signalCoods[i])
+            
+            signalTexts = ["",""]  # Modified for 2 signals
+
+            for i in range(0,noOfSignals):
+                signalTexts[i] = self.font.render(str(signals[i].signalText), True, self.white, self.black)
+                self.screen.blit(signalTexts[i], signalTimerCoods[i])
+
+            for vehicle in simulation:
+                self.screen.blit(vehicle.image, [vehicle.x, vehicle.y])
+                vehicle.move()
+            pygame.display.update()
+
+
+if __name__ == "__main__":
+    game = Main()
+    game.run()
