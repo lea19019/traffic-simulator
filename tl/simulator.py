@@ -67,6 +67,10 @@ import time
 import threading
 import pygame
 import sys
+from pathlib import Path
+
+current_dir = Path(__file__).parent
+images_dir = current_dir / 'images'
 
 # Default values of signal timers
 defaultGreen = {0:35, 1:5}  # Modified for 2 signals
@@ -103,6 +107,7 @@ movingGap = 15   # moving gap
 pygame.init()
 simulation = pygame.sprite.Group()
 
+
 class TrafficSignal:
     def __init__(self, red, yellow, green):
         self.red = red
@@ -123,7 +128,8 @@ class Vehicle(pygame.sprite.Sprite):
         self.crossed = 0
         vehicles[direction][lane].append(self)
         self.index = len(vehicles[direction][lane]) - 1
-        path = "images/" + direction + "/" + vehicleClass + ".png"
+        # path = "tl/images/" + direction + "/" + vehicleClass + ".png"
+        path = current_dir / "images" / direction / f"{vehicleClass}.png"
         self.image = pygame.image.load(path)
 
         if(len(vehicles[direction][lane])>1 and vehicles[direction][lane][self.index-1].crossed==0):
@@ -199,7 +205,7 @@ def initialize():
 def repeat():
     global currentGreen, currentYellow, nextGreen
     while(signals[currentGreen].green>0):
-        print(vehicles)
+        # print(vehicles)
         updateValues()
         time.sleep(1)
     currentYellow = 1
@@ -275,10 +281,12 @@ class Main:
         # Initialize pygame and load resources
         self.screen = pygame.display.set_mode(self.screenSize)
         pygame.display.set_caption("TRAFFIC SIMULATION")
-        self.background = pygame.image.load('images/intersection.png')
-        self.redSignal = pygame.image.load('images/signals/red.png')
-        self.yellowSignal = pygame.image.load('images/signals/yellow.png')
-        self.greenSignal = pygame.image.load('images/signals/green.png')
+
+        self.background = pygame.image.load(str(images_dir / 'intersection.png'))
+        self.redSignal = pygame.image.load(str(images_dir / 'signals' / 'red.png'))
+        self.yellowSignal = pygame.image.load(str(images_dir / 'signals' / 'yellow.png'))
+        self.greenSignal = pygame.image.load(str(images_dir / 'signals' / 'green.png'))
+
         self.font = pygame.font.Font(None, 30)
 
     def start_simulation(self):
@@ -326,7 +334,3 @@ class Main:
                 vehicle.move()
             pygame.display.update()
 
-
-if __name__ == "__main__":
-    game = Main()
-    game.run()
